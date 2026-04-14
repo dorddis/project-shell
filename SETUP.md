@@ -49,8 +49,13 @@ Pick your tool(s) and copy the appropriate config file:
 
 **GitHub Copilot:**
 ```bash
+# Context instructions (repo-wide)
 mkdir -p .github
 cp tool-configs/copilot-instructions.md .github/copilot-instructions.md
+
+# Prompt files (slash commands: /wrap, /commit, /review, etc.)
+mkdir -p .github/prompts
+cp copilot-prompts/*.prompt.md .github/prompts/
 ```
 
 **Cursor:**
@@ -218,6 +223,73 @@ cp claude-code/skills/commit/SKILL.md .claude/skills/commit/
 
 Reports go to `docs/reviews/YYYY-MM-DD_<slug>-<agent>.md` with a master summary.
 
+### GitHub Copilot: Prompt Files for Review, Commit, and Wrap
+
+Copilot uses **Prompt Files** (`.prompt.md` in `.github/prompts/`) as reusable slash commands in Copilot Chat and Agent Mode. The `copilot-prompts/` folder contains Copilot-native versions of the same workflows.
+
+**Setup:**
+```bash
+mkdir -p .github/prompts
+cp copilot-prompts/*.prompt.md .github/prompts/
+```
+
+**Available prompts (invoke in Copilot Chat):**
+
+| Command | What it does |
+|---------|-------------|
+| `/review` | Full 6-area code review (build, security, logic, quality, conflicts, gaps) |
+| `/review-security` | Targeted security review (OWASP Top 10, secrets, injection) |
+| `/review-logic` | Targeted logic review (bugs, edge cases, race conditions) |
+| `/commit` | Build verification + staged commit with conventional message |
+| `/wrap` | End-of-session: update STATUS.md, create session log, commit context |
+
+**How it compares to Claude Code:**
+
+| Capability | Claude Code | GitHub Copilot |
+|-----------|-------------|----------------|
+| Context file | `CLAUDE.md` (auto-loaded) | `.github/copilot-instructions.md` (auto-loaded) |
+| Universal context | `AGENTS.md` (also read) | `AGENTS.md` (also read) |
+| Slash commands | `.claude/skills/*/SKILL.md` | `.github/prompts/*.prompt.md` |
+| Multi-agent review | 6 parallel agents, master report | Single-pass comprehensive review |
+| Scoped rules | `.claude/rules/*.md` with path globs | `.instructions.md` files with `applyTo` globs |
+| Personal overrides | `CLAUDE.local.md` (gitignored) | VS Code settings (user-level instructions) |
+
+**Key differences:**
+
+1. **No parallel agents.** Copilot runs one model at a time. The `/review` prompt compensates by packing all 6 checklists into one comprehensive pass. For deeper reviews, run the targeted prompts (`/review-security`, `/review-logic`) individually.
+
+2. **Prompt files need `applyTo` for auto-triggering.** Without `applyTo` frontmatter, prompts are only invoked manually via `/name`. This is fine for review/commit/wrap -- you want those manual anyway.
+
+3. **Path-scoped instructions.** If you want Copilot to automatically apply different rules for different parts of the codebase, create `.instructions.md` files:
+   ```markdown
+   ---
+   name: 'Backend conventions'
+   description: 'Python/FastAPI patterns for backend code'
+   applyTo: 'backend/**/*.py'
+   ---
+   Use async/await for all endpoint handlers.
+   Use SQLAlchemy ORM for queries, never raw SQL.
+   Standard response format: {"data": ..., "error": false, "message": "...", "status": 200}
+   ```
+   Place these in `.github/instructions/` or anywhere in the workspace.
+
+4. **Organization-level instructions.** If your team uses GitHub org settings, an admin can set default instructions that apply across all repos (GitHub.com > Org settings > Copilot > Custom instructions). This is the equivalent of Claude Code's `~/.claude/CLAUDE.md`.
+
+**Recommended Copilot setup (complete):**
+```
+.github/
+├── copilot-instructions.md          # Repo-wide context (from tool-configs/)
+├── prompts/
+│   ├── wrap.prompt.md               # /wrap - session wrap-up
+│   ├── commit.prompt.md             # /commit - build + commit
+│   ├── review.prompt.md             # /review - full 6-area review
+│   ├── review-security.prompt.md    # /review-security - targeted
+│   └── review-logic.prompt.md       # /review-logic - targeted
+└── instructions/                    # (optional) path-scoped rules
+    ├── backend.instructions.md      # applyTo: 'backend/**/*.py'
+    └── frontend.instructions.md     # applyTo: 'frontend/**/*.tsx'
+```
+
 ## Cross-Tool Compatibility Reference
 
 ### Context File Names by Tool
@@ -297,8 +369,15 @@ your-project/
 │   │   ├── review-conflicts.md
 │   │   └── review-gaps.md
 │   └── skills/            # Slash command skills
-│       ├── review/SKILL.md   # /review orchestrator
+│       ├── review/SKILL.md   # /review orchestrator (6 parallel agents)
 │       └── commit/SKILL.md   # /commit workflow
+│
+├── copilot-prompts/       # GitHub Copilot prompt files (copy to .github/prompts/)
+│   ├── wrap.prompt.md        # /wrap - session wrap-up
+│   ├── commit.prompt.md      # /commit - build + commit
+│   ├── review.prompt.md      # /review - comprehensive 6-area review
+│   ├── review-security.prompt.md  # /review-security - targeted
+│   └── review-logic.prompt.md     # /review-logic - targeted
 │
 ├── archive/               # Old/completed work (never delete, always archive)
 │
