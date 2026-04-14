@@ -1,0 +1,14 @@
+This project uses a structured context system. Before starting work:
+
+1. Read STATUS.md for current priorities and blockers
+2. Read AGENTS.md for project overview, team, and workflow
+3. Read KNOWLEDGE.md for architecture and technical decisions (on demand)
+
+Workflow rules:
+- Update STATUS.md at end of every session
+- Create session logs in sessions/ with YAML frontmatter
+- Append standup items to docs/standups/YYYY-MM-DD.txt
+- Archive old work to archive/, never delete files
+- Use Conventional Commits: type(scope): description
+- Check for secrets and debug statements before committing
+- Follow existing code patterns and conventions

@@ -1,0 +1,40 @@
+---
+description: "Project-wide context and workflow rules"
+alwaysApply: true
+---
+
+# Project Context
+
+This project uses a structured context system with three key files:
+
+- **STATUS.md** - Current priorities, blockers, action items (changes daily)
+- **KNOWLEDGE.md** - Evergreen reference: architecture, decisions, tech stack (changes when new info arrives)
+- **AGENTS.md** - Project identity, team, workflow (changes rarely)
+
+## Before Starting Work
+
+1. Read `STATUS.md` first 30 lines for current state
+2. Read `AGENTS.md` for project overview and team context
+3. Check `KNOWLEDGE.md` before asking questions -- it likely has the answer
+
+## Workflow Rules
+
+- Update `STATUS.md` at end of every session
+- Append standup-worthy items to `docs/standups/YYYY-MM-DD.txt`
+- Create session logs in `sessions/` with YAML frontmatter (wrap_id, date, tags, summary, status)
+- Archive old work to `archive/`, never delete files
+- Cross-reference between files, don't duplicate content
+
+## Code Standards
+
+- Conventional Commits: `type(scope): description`
+- Check for secrets and debug statements before committing
+- Follow existing patterns in the codebase
+- Read files before editing them
+
+## File Routing
+
+- Current state -> `STATUS.md`
+- Reference info -> `KNOWLEDGE.md`
+- Research/analysis -> `docs/<subfolder>/`
+- Session logs -> `sessions/YYYY-MM-DD_name.md`

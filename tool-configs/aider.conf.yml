@@ -1,0 +1,14 @@
+# Aider configuration
+# Copy this to .aider.conf.yml in your project root
+
+# Load context files as read-only (benefits from prompt caching)
+read:
+  - AGENTS.md
+  - STATUS.md
+
+# Auto-commit settings
+auto-commits: true
+auto-lint: true
+
+# Conventional commits
+commit-prompt: "Generate a conventional commit message. Format: type(scope): description. Types: feat, fix, refactor, perf, test, docs, chore, build."

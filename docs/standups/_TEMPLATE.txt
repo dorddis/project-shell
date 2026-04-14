@@ -1,0 +1,19 @@
+STANDUP - YYYY-MM-DD
+
+WHAT I DID
+===========
+- [Item 1]
+- [Item 2]
+
+OPEN PRs
+=========
+- [Repo]: #[num] ([description], [status])
+
+BLOCKERS
+=========
+- [Blocker 1 -- what's waiting on what]
+
+WHAT I'M WORKING ON TODAY
+===========================
+- [Today's focus area 1]
+- [Today's focus area 2]
