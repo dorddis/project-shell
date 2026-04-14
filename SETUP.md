@@ -237,9 +237,13 @@ cp copilot-prompts/*.prompt.md .github/prompts/
 
 | Command | What it does |
 |---------|-------------|
-| `/review` | Full 6-area code review (build, security, logic, quality, conflicts, gaps) |
-| `/review-security` | Targeted security review (OWASP Top 10, secrets, injection) |
-| `/review-logic` | Targeted logic review (bugs, edge cases, race conditions) |
+| `/review` | Full 6-area code review (build, security, logic, quality, conflicts, gaps) in one pass |
+| `/review-build` | Build verification: compile, lint, type-check, dependency health |
+| `/review-security` | Security review: OWASP Top 10, secrets, injection, auth, frontend/backend specific |
+| `/review-logic` | Logic review: bugs, edge cases, race conditions, null access, type lies, async |
+| `/review-quality` | Quality review: naming, structure, duplication, complexity, conventions |
+| `/review-conflicts` | Integration review: merge conflicts, branch overlap, migration gaps, deploy risks |
+| `/review-gaps` | Gap analysis: missing pieces, dead code, error handling, UX, production risks |
 | `/commit` | Build verification + staged commit with conventional message |
 | `/wrap` | End-of-session: update STATUS.md, create session log, commit context |
 
@@ -282,9 +286,13 @@ cp copilot-prompts/*.prompt.md .github/prompts/
 ├── prompts/
 │   ├── wrap.prompt.md               # /wrap - session wrap-up
 │   ├── commit.prompt.md             # /commit - build + commit
-│   ├── review.prompt.md             # /review - full 6-area review
-│   ├── review-security.prompt.md    # /review-security - targeted
-│   └── review-logic.prompt.md       # /review-logic - targeted
+│   ├── review.prompt.md             # /review - full 6-area review (one pass)
+│   ├── review-build.prompt.md       # /review-build - build verification
+│   ├── review-security.prompt.md    # /review-security - OWASP security
+│   ├── review-logic.prompt.md       # /review-logic - bugs + edge cases
+│   ├── review-quality.prompt.md     # /review-quality - code quality
+│   ├── review-conflicts.prompt.md   # /review-conflicts - integration risks
+│   └── review-gaps.prompt.md        # /review-gaps - completeness
 └── instructions/                    # (optional) path-scoped rules
     ├── backend.instructions.md      # applyTo: 'backend/**/*.py'
     └── frontend.instructions.md     # applyTo: 'frontend/**/*.tsx'
@@ -373,11 +381,15 @@ your-project/
 │       └── commit/SKILL.md   # /commit workflow
 │
 ├── copilot-prompts/       # GitHub Copilot prompt files (copy to .github/prompts/)
-│   ├── wrap.prompt.md        # /wrap - session wrap-up
-│   ├── commit.prompt.md      # /commit - build + commit
-│   ├── review.prompt.md      # /review - comprehensive 6-area review
-│   ├── review-security.prompt.md  # /review-security - targeted
-│   └── review-logic.prompt.md     # /review-logic - targeted
+│   ├── wrap.prompt.md              # /wrap - session wrap-up
+│   ├── commit.prompt.md            # /commit - build + commit
+│   ├── review.prompt.md            # /review - comprehensive 6-area review
+│   ├── review-build.prompt.md      # /review-build - build verification
+│   ├── review-security.prompt.md   # /review-security - OWASP security
+│   ├── review-logic.prompt.md      # /review-logic - bugs + edge cases
+│   ├── review-quality.prompt.md    # /review-quality - code quality
+│   ├── review-conflicts.prompt.md  # /review-conflicts - integration risks
+│   └── review-gaps.prompt.md       # /review-gaps - completeness analysis
 │
 ├── archive/               # Old/completed work (never delete, always archive)
 │
