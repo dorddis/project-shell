@@ -186,6 +186,38 @@ Then invoke with `/wrap [session-name]`.
 
 **For other tools:** Paste the contents of `workflows/wrap.md` as a prompt at end of session, or set it up as a saved prompt/snippet in your tool.
 
+### Claude Code: 6-Agent Review + Commit Skills
+
+The `claude-code/` folder contains a full multi-agent code review system and a commit workflow, built for Claude Code's Agent tool. This is the most powerful part of the template -- 6 specialist agents review your code in parallel like a senior dev team.
+
+**Setup:**
+```bash
+# Copy agent definitions (global -- works across all projects)
+mkdir -p ~/.claude/agents
+cp claude-code/agents/review-*.md ~/.claude/agents/
+
+# Copy skills (project-specific)
+mkdir -p .claude/skills/review .claude/skills/commit
+cp claude-code/skills/review/SKILL.md .claude/skills/review/
+cp claude-code/skills/commit/SKILL.md .claude/skills/commit/
+```
+
+**Usage:**
+- `/commit` -- stages, builds, reviews, and commits with a clean message
+- `/review` -- launches 6 parallel agents (build, security, logic, quality, conflicts, gaps), then synthesizes a master report
+
+**The 6 review agents:**
+| Agent | What it checks |
+|-------|---------------|
+| `review-build` | Compilation, linting, type-checking, dependency health |
+| `review-security` | Secrets, injection, OWASP Top 10, auth bypass, XSS |
+| `review-logic` | Bugs, edge cases, race conditions, null access, type lies |
+| `review-quality` | Naming, structure, duplication, complexity, conventions |
+| `review-conflicts` | Merge conflicts, branch overlap, migration gaps, deploy risks |
+| `review-gaps` | Missing pieces, dead code, error handling, UX gaps, test gaps |
+
+Reports go to `docs/reviews/YYYY-MM-DD_<slug>-<agent>.md` with a master summary.
+
 ## Cross-Tool Compatibility Reference
 
 ### Context File Names by Tool
@@ -255,6 +287,18 @@ your-project/
 │   ├── aider.conf.yml
 │   ├── amazonq-rules.md
 │   └── continuerules
+│
+├── claude-code/           # Claude Code specific (agents + skills)
+│   ├── agents/            # 6 review agent definitions
+│   │   ├── review-build.md
+│   │   ├── review-security.md
+│   │   ├── review-logic.md
+│   │   ├── review-quality.md
+│   │   ├── review-conflicts.md
+│   │   └── review-gaps.md
+│   └── skills/            # Slash command skills
+│       ├── review/SKILL.md   # /review orchestrator
+│       └── commit/SKILL.md   # /commit workflow
 │
 ├── archive/               # Old/completed work (never delete, always archive)
 │
