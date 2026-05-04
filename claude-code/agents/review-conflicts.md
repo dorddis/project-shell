@@ -10,7 +10,7 @@ tools:
   - WebSearch
   - WebFetch
 model: sonnet
-color: magenta
+color: pink
 version: 0.1.0
 ---
 
