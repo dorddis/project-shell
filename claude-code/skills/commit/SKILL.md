@@ -1,75 +1,166 @@
 ---
 name: commit
-description: Stage, review, and commit changes with a clean message. Runs build verification before committing. TRIGGER when: user says "/commit", "commit this", "commit changes". DO NOT TRIGGER automatically - only on explicit user request.
+description: >
+  Stage and commit changes with a clean message. Runs project lint/typecheck if available, never auto-runs review agents.
+  TRIGGER when: user says "/commit", "commit this", "commit changes", "commit properly".
+  DO NOT TRIGGER automatically - only on explicit user request.
+allowed-tools: Bash, Read, Write, Edit, Grep, Glob
+argument-hint: [message]
 ---
 
-## Commit Workflow
+# Commit Workflow
 
-### 1. Detect Context
-Determine which repo/area you're working in by checking the changed files and project structure.
+Pure commit helper. Detects project conventions, runs lint/typecheck if configured, stages safely, commits with a clean message. **Does NOT run review agents** — that's `/review`'s job. If you want review-grade scrutiny on this diff, run `/review` first, fix what it flags, then run `/commit`.
 
-### 2. Pre-commit Review
-- Run `git diff --staged` to see what's being committed
-- Check for:
-  - Hardcoded secrets, .env references, API keys, tokens
-  - Debug statements (`print()`, `console.log()`, `debugger`)
-  - TODO/FIXME comments in new code
-  - Unnecessary `any` types (TypeScript)
-  - Unintended files (binary files, IDE configs, .env files)
-- Verify changes match the intended scope (no unrelated files)
+## Phase 1: Detect Context
 
-### 3. Code Quality Check
-- Read any CLAUDE.md, CLAUDE.local.md, or AGENTS.md in the repo for project conventions
-- Check new code against existing patterns in the same directory
-- Verify imports, naming, and structure follow project style
+Read `CLAUDE.md` and `CLAUDE.local.md` in the repo (if present) to learn:
+- Project stack (language, framework)
+- Lint command (e.g., `npm run lint`, `ruff check`, `eslint .`)
+- Typecheck command (e.g., `tsc --noEmit`, `mypy .`)
+- Test command (do NOT run tests in /commit — too slow; mention if user should run them separately)
+- Any project-specific commit conventions
 
-### 4. Build Verification (MANDATORY -- do NOT skip)
+If no CLAUDE.md exists, infer from `package.json` scripts / `pyproject.toml` / `Makefile`.
 
-This is the #1 gate. If the build fails, nothing else matters.
+## Phase 2: Gather Diff
 
-Run the appropriate build/lint/type-check commands for the project stack:
-
-**TypeScript/Next.js:**
 ```bash
-npm run build          # Full production build (ESLint + TypeScript + bundling)
+git status
+git diff HEAD --stat
+git diff HEAD
+git branch --show-current
+git log --oneline -10
 ```
-If build fails, isolate the cause:
+
+If no changes detected, tell the user and stop.
+
+If unstaged + staged changes are mixed, show both and ask which to commit. Don't assume.
+
+## Phase 3: Lint + Typecheck (if commands exist)
+
+Only if Phase 1 surfaced lint and/or typecheck commands:
+
 ```bash
-npx next lint          # ESLint only
-npx tsc --noEmit       # TypeScript type-check only
+<lint command>
+<typecheck command>
 ```
 
-**Python:**
+Run them sequentially in the affected repo (use the right CWD if the project has multiple repos under it).
+
+**If either fails:**
+- Report the failure with the exact error output.
+- Stop. Do not commit a broken-lint state.
+- The user fixes, then re-runs `/commit`.
+
+**If both pass (or no commands configured):**
+- Note "lint: pass | typecheck: pass" or "lint/typecheck: not configured" in the commit prep summary.
+- Continue.
+
+## Phase 4: Stage Files (safety filters)
+
+**Identify files to stage from the diff. Exclude:**
+- `.env*` files (except `.env.example`)
+- `CLAUDE.local.md` (explicitly says "DO NOT commit")
+- `.claude/` directory
+- `node_modules/`, `__pycache__/`, `.venv/`, `dist/`, `.next/`, `build/`
+- Any file whose name contains `secret`, `key`, `token`, `credential`, `private` (warn user before excluding — could be a false positive)
+- Any file >5MB without explicit user confirmation (binary blobs)
+
+**Stage specific files** (NEVER `git add -A` or `git add .`):
+
 ```bash
-python -m py_compile main.py    # Syntax check
-python -m pytest -v             # Run tests if they exist
+git add <file1> <file2> ...
 ```
 
-**Other stacks:** Identify and run the project's build commands from package.json, Makefile, or CI config.
+If the diff includes excluded files, list them in the prep summary so the user knows they were skipped.
 
-**Report results to the user.** If build fails, STOP. Fix the errors first. Do NOT proceed to commit.
+## Phase 5: Generate Commit Message
 
-### 5. Stage and Commit
-- Stage only relevant files (never `git add .` or `git add -A`)
-- Write a concise commit message using Conventional Commits:
+**If `$ARGUMENTS` is provided** (and isn't a flag), use it verbatim as the message.
+
+**Otherwise, generate a clean message.** Format:
 
 ```
-<type>(<scope>): <description>
-
-- file1 path - what was done and why
-- file2 path - what was done and why
+type: imperative description
 ```
 
-**Types:** `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`, `build`
-**Scope:** Component or module name (e.g., `auth`, `api`, `dashboard`)
+- **Type:** `feat`, `fix`, `refactor`, `style`, `docs`, `test`, `chore`, `perf`, `build`, `ci`
+- **Description:** under 72 chars, imperative mood ("add X" not "added X")
+- **Body** (optional, only if non-trivial change): 2-3 lines explaining *why*, not *what*. Wrap at 72 chars.
 
-Rules:
-- Imperative mood, lowercase, no period
-- Under 72 chars for the subject line
-- Body: per-file descriptions with WHAT and WHY
-- Multiple logical changes -> split into multiple commits
+**Hard rules:**
+- NO `Co-authored-by: Claude` lines
+- NO emoji
+- NO "Generated with Claude Code" footer
+- NO marketing language ("comprehensively", "robustly", "elegantly")
 
-### 6. Post-commit
-- Run `git log --oneline -3` to verify
-- Remind: push with `git push origin <branch-name>` when ready
-- Remind: run `/review` before creating a PR
+Show the proposed message to the user and ask for approval (unless `$ARGUMENTS` was provided — then commit directly).
+
+## Phase 6: Pre-commit Summary
+
+Before committing, print a one-block summary:
+
+```
+Branch: <branch>
+Files staged: <N>
+  + <file1>
+  + <file2>
+  ...
+Files skipped (excluded): <list, if any>
+Lint: pass | fail | not configured
+Typecheck: pass | fail | not configured
+Message: <proposed message>
+
+Note: /commit does NOT run review agents. If this diff needs review-grade scrutiny, abort and run /review first.
+```
+
+Wait for user confirmation: **proceed / amend message / cancel**.
+
+## Phase 7: Commit + Verify
+
+Use HEREDOC for the message to handle special characters cleanly:
+
+```bash
+git commit -m "$(cat <<'EOF'
+type: description
+
+optional body line 1
+optional body line 2
+EOF
+)"
+```
+
+Then verify:
+
+```bash
+git log --oneline -3
+git status
+```
+
+Report the commit SHA + branch state to the user.
+
+## Edge Cases
+
+- **Pre-commit hook fails:** Do NOT use `--no-verify`. Report the hook error and stop. User fixes the underlying issue and re-runs.
+- **gh CLI not available:** No effect — `/commit` does not use gh.
+- **Detached HEAD:** Warn the user. Commit anyway if they confirm, but flag that the commit may be lost on next checkout.
+- **Committing to `main` / `staging` / `production` directly:** Warn explicitly. Ask "Are you sure? Most workflows commit to a feature branch and PR into main." Proceed only on explicit confirmation.
+- **Large diff (>2000 lines):** Suggest splitting into smaller commits. Proceed if user insists.
+
+## What This Skill Must Refuse
+
+- **Auto-running review agents** — that's `/review`'s job. `/commit` only runs lint + typecheck, which are deterministic project tooling, not LLM review.
+- **Skipping hooks via `--no-verify`** — never. The hooks exist for a reason.
+- **Bypassing the staging filter** — never `git add -A` or `git add .`. Explicit file list only.
+- **Committing without user approval of the message** (unless `$ARGUMENTS` was provided as the message).
+- **Pushing or opening a PR** — `/commit` ends at the local commit. Push is a separate explicit user action.
+
+## Relationship to /review
+
+- `/commit` = commit helper. Lint, stage, commit. Fast. No agent dispatches.
+- `/review` = pre-PR audit. 6 specialist agents in parallel. Slow. Read-only — does not commit.
+
+**Sequence:** `/review` first → fix flagged items → `/commit` → push.
+
+If you find yourself wishing `/commit` did review for you, stop and run `/review`. Don't try to make `/commit` do both jobs — that's the architecture this rewrite explicitly removed.

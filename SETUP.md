@@ -191,37 +191,43 @@ Then invoke with `/wrap [session-name]`.
 
 **For other tools:** Paste the contents of `workflows/wrap.md` as a prompt at end of session, or set it up as a saved prompt/snippet in your tool.
 
-### Claude Code: 6-Agent Review + Commit Skills
+### Claude Code: multi-agent review + dev workflow skills
 
-The `claude-code/` folder contains a full multi-agent code review system and a commit workflow, built for Claude Code's Agent tool. This is the most powerful part of the template -- 6 specialist agents review your code in parallel like a senior dev team.
+The `claude-code/` folder contains a multi-agent code review system, response/test/commit/diagnose/wrap workflows, and the specialist agents they dispatch. Built for Claude Code's `Agent` tool.
 
 **Setup:**
 ```bash
-# Copy agent definitions (global -- works across all projects)
+# Copy agent definitions (global — works across all projects)
 mkdir -p ~/.claude/agents
-cp claude-code/agents/review-*.md ~/.claude/agents/
+cp claude-code/agents/*.md ~/.claude/agents/
 
 # Copy skills (project-specific)
-mkdir -p .claude/skills/review .claude/skills/commit
-cp claude-code/skills/review/SKILL.md .claude/skills/review/
-cp claude-code/skills/commit/SKILL.md .claude/skills/commit/
+mkdir -p .claude/skills
+cp -r claude-code/skills/* .claude/skills/
 ```
 
-**Usage:**
-- `/commit` -- stages, builds, reviews, and commits with a clean message
-- `/review` -- launches 6 parallel agents (build, security, logic, quality, conflicts, gaps), then synthesizes a master report
+Restart Claude Code so the agent index reloads.
 
-**The 6 review agents:**
+**Skills:**
+- `/review` — eligibility-check + 7 parallel review specialists (build, security, logic, quality, conflicts, gaps, history) + Haiku confidence scoring + filter ≥80 + master report
+- `/respond` — addresses PR review comments. Aggregates context via 4 sub-agents, verifies each comment, produces an action-grouped report
+- `/test-writing` — multi-agent test authoring (per-file specialist writers + critic + validator)
+- `/diagnose` — pre-fix bug investigation: log fetch → root cause → verify-real → pattern scan → fix design
+- `/commit` — lint + typecheck + stage + commit with clean message
+- `/wrap` — end-of-session: STATUS update, session log, commit
+
+**The 7 review specialists:**
 | Agent | What it checks |
 |-------|---------------|
-| `review-build` | Compilation, linting, type-checking, dependency health |
-| `review-security` | Secrets, injection, OWASP Top 10, auth bypass, XSS |
-| `review-logic` | Bugs, edge cases, race conditions, null access, type lies |
-| `review-quality` | Naming, structure, duplication, complexity, conventions |
-| `review-conflicts` | Merge conflicts, branch overlap, migration gaps, deploy risks |
-| `review-gaps` | Missing pieces, dead code, error handling, UX gaps, test gaps |
+| `review-build` | Compilation, linting, type-checking, dependency health, slopsquat detection |
+| `review-security` | OWASP Top 10, secrets, injection, auth, XSS, AI security flavors |
+| `review-logic` | Bugs, edge cases, race conditions, null access, type lies, contract drift |
+| `review-quality` | Naming, structure, duplication, complexity, convention adherence |
+| `review-conflicts` | Textual + semantic merge conflicts, migration gaps, deploy surface drift |
+| `review-gaps` | Incomplete impl, missing error handling/UX states/tests, accessibility gaps |
+| `review-history` | Git-blame regressions of past fixes, ignored constraint comments, prior-PR-comment violations |
 
-Reports go to `docs/reviews/YYYY-MM-DD_<slug>-<agent>.md` with a master summary.
+Each specialist scores findings 0–100 confidence; `<80` is dropped before posting. Reports go to `docs/reviews/YYYY-MM-DD_<slug>-<agent>.md` with a binary master verdict (`READY_TO_MERGE` / `NEEDS_REVIEW`).
 
 ### GitHub Copilot: Prompt Files for Review, Commit, and Wrap
 
@@ -370,7 +376,7 @@ your-project/
 │
 ├── claude-code/           # Claude Code specific (agents + skills)
 │   ├── agents/            # 6 review agent definitions
-│   │   ├── review-build.md
+│   │   ├── review-build.md   # plus review-security/logic/quality/conflicts/gaps/history
 │   │   ├── review-security.md
 │   │   ├── review-logic.md
 │   │   ├── review-quality.md
