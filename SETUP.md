@@ -67,6 +67,32 @@ cp tool-configs/cursor-rules.mdc .cursor/rules/project.mdc
 **Claude Code:**
 Already done -- Claude Code reads `CLAUDE.md` from project root automatically.
 
+**OpenAI Codex:**
+```bash
+# Copy Codex skills
+mkdir -p ~/.agents/skills
+cp -r codex/skills/* ~/.agents/skills/
+
+# Copy Codex custom agents
+mkdir -p ~/.codex/agents
+cp codex/agents/*.toml ~/.codex/agents/
+
+# Merge Codex config values
+cat codex/config.toml
+```
+
+Recommended Codex config:
+```toml
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 10
+max_depth = 5
+```
+
+Restart Codex so skill and agent discovery reloads.
+
 **Windsurf:**
 ```bash
 mkdir -p .windsurf/rules
@@ -192,6 +218,17 @@ Then invoke with `/wrap [session-name]`.
 **For other tools:** Paste the contents of `workflows/wrap.md` as a prompt at end of session, or set it up as a saved prompt/snippet in your tool.
 
 ### Claude Code: multi-agent review + dev workflow skills
+
+### Codex: skills and custom agents
+
+The `codex/` folder contains Codex-native versions of the same generic workflow set:
+
+- `codex/skills/` -> `~/.agents/skills/`
+- `codex/agents/` -> `~/.codex/agents/`
+- `codex/config.toml` -> merge into `~/.codex/config.toml`
+
+Included skills: `/review`, `/respond`, `/test-writing`, `/diagnose`, `/commit`, `/wrap`.
+
 
 The `claude-code/` folder contains a multi-agent code review system, response/test/commit/diagnose/wrap workflows, and the specialist agents they dispatch. Built for Claude Code's `Agent` tool.
 
