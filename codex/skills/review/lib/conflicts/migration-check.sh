@@ -1,37 +1,68 @@
 #!/bin/bash
-# review-conflicts/migration-check.sh
-# C3 migration / schema collision detection across active sibling branches.
-# Read-only. Run from project repo root.
+# review/lib/conflicts/migration-check.sh
+# Migration/schema collision detection across active sibling branches.
 #
-# Usage: bash migration-check.sh <base> <migration-dir> [active-branches]
-# Default migration-dir: database/migrations
-# Output: ===SECTION=== delimited blocks: this branch's migrations + each sibling's migrations.
-#
-# Notes:
-#   - Caller is responsible for spotting number collisions in the output (compare numeric prefixes).
-#   - Only runs `git ls-tree`; does not invoke psql or apply anything.
+# Usage:
+#   migration-check.sh [--base staging] [--migration-dir database/migrations] [--repo-dir PATH] [active-branches...]
+# Backward-compatible shorthand:
+#   migration-check.sh [base] [migration-dir] [active-branches...]
 
 set +e
 
-BASE="${1:-staging}"
-MIG_DIR="${2:-database/migrations}"
-shift 2
-ACTIVE="$*"
+BASE="staging"
+MIG_DIR="database/migrations"
+REPO_DIR=""
+ACTIVE_ARGS=()
 
-if [ -z "$ACTIVE" ] && [ ! -t 0 ]; then
+normalize_path() {
+  local p="$1"
+  [ -z "$p" ] && return
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$p" 2>/dev/null && return
+  fi
+  echo "$p"
+}
+
+if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+  BASE="$1"; shift
+fi
+if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+  MIG_DIR="$1"; shift
+fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --base) BASE="$2"; shift 2 ;;
+    --migration-dir) MIG_DIR="$2"; shift 2 ;;
+    --repo-dir) REPO_DIR="$2"; shift 2 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    --*) echo "Unknown arg: $1" >&2; exit 2 ;;
+    *) ACTIVE_ARGS+=("$1"); shift ;;
+  esac
+done
+
+REPO_DIR="$(normalize_path "$REPO_DIR")"
+[ -z "$REPO_DIR" ] && REPO_DIR="$(normalize_path "$(git rev-parse --show-toplevel 2>/dev/null)")"
+
+ACTIVE=""
+if [ ${#ACTIVE_ARGS[@]} -gt 0 ]; then
+  ACTIVE="${ACTIVE_ARGS[*]}"
+elif [ ! -t 0 ]; then
   ACTIVE=$(cat | tr '\n' ' ')
 fi
 
+echo "===CONTEXT==="
+echo "repo_dir: $REPO_DIR"
+echo "base: $BASE"
+echo "migration_dir: $MIG_DIR"
+
 echo "===THIS_BRANCH_MIGRATIONS_IN_DIFF==="
-# Migration files added or modified in the current diff.
-git diff --name-only "origin/$BASE...HEAD" -- "$MIG_DIR/" 2>/dev/null
+git -C "$REPO_DIR" diff --name-only "origin/$BASE...HEAD" -- "$MIG_DIR/" 2>/dev/null
 
 echo "===THIS_BRANCH_ALL_MIGRATIONS==="
-# All migration files visible on the current branch (for sequence reference).
-git ls-tree -r --name-only HEAD -- "$MIG_DIR/" 2>/dev/null | sort
+git -C "$REPO_DIR" ls-tree -r --name-only HEAD -- "$MIG_DIR/" 2>/dev/null | sort
 
 echo "===SIBLING_BRANCH_MIGRATIONS==="
-CURRENT=$(git branch --show-current 2>/dev/null)
+CURRENT=$(git -C "$REPO_DIR" branch --show-current 2>/dev/null)
 if [ -z "$ACTIVE" ]; then
   echo "[no active sibling branches]"
 else
@@ -39,7 +70,7 @@ else
     [ "$branch" = "origin/$BASE" ] && continue
     [ "$branch" = "origin/$CURRENT" ] && continue
     [ "$branch" = "$CURRENT" ] && continue
-    files=$(git ls-tree -r --name-only "$branch" -- "$MIG_DIR/" 2>/dev/null | sort)
+    files=$(git -C "$REPO_DIR" ls-tree -r --name-only "$branch" -- "$MIG_DIR/" 2>/dev/null | sort)
     if [ -n "$files" ]; then
       echo "BRANCH: $branch"
       echo "$files"

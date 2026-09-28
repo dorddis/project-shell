@@ -1,58 +1,84 @@
 #!/bin/bash
-# review-conflicts/conflict-checks.sh
-# C1 textual merge check + C2 file-overlap detection against active sibling branches.
-# Read-only. Run from project repo root.
+# review/lib/conflicts/conflict-checks.sh
+# Textual merge check and file-overlap detection against active sibling branches.
 #
-# Usage: bash conflict-checks.sh <base> [active-branches-newline-or-space-separated]
-# Output: ===SECTION=== delimited blocks. Pass active branches via stdin OR positional args.
-#
-# Examples:
-#   bash conflict-checks.sh staging "origin/feature/x origin/feature/y"
-#   bash branch-context.sh staging | grep -A20 ACTIVE_BRANCHES | tail -n+2 | awk '{print $1}' | xargs bash conflict-checks.sh staging
+# Usage:
+#   conflict-checks.sh [--base staging] [--repo-dir PATH] [active-branches...]
+# Backward-compatible shorthand:
+#   conflict-checks.sh [base] [active-branches...]
 
 set +e
 
-BASE="${1:-staging}"
-shift
-ACTIVE="$*"
+BASE="staging"
+REPO_DIR=""
+ACTIVE_ARGS=()
 
-# Read from stdin if no active-branches arg supplied.
-if [ -z "$ACTIVE" ] && [ ! -t 0 ]; then
+normalize_path() {
+  local p="$1"
+  [ -z "$p" ] && return
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$p" 2>/dev/null && return
+  fi
+  echo "$p"
+}
+
+if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+  BASE="$1"; shift
+fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --base) BASE="$2"; shift 2 ;;
+    --repo-dir) REPO_DIR="$2"; shift 2 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    --*) echo "Unknown arg: $1" >&2; exit 2 ;;
+    *) ACTIVE_ARGS+=("$1"); shift ;;
+  esac
+done
+
+REPO_DIR="$(normalize_path "$REPO_DIR")"
+[ -z "$REPO_DIR" ] && REPO_DIR="$(normalize_path "$(git rev-parse --show-toplevel 2>/dev/null)")"
+
+ACTIVE=""
+if [ ${#ACTIVE_ARGS[@]} -gt 0 ]; then
+  ACTIVE="${ACTIVE_ARGS[*]}"
+elif [ ! -t 0 ]; then
   ACTIVE=$(cat | tr '\n' ' ')
 fi
 
+echo "===CONTEXT==="
+echo "repo_dir: $REPO_DIR"
+echo "base: $BASE"
+
 echo "===CHANGED_FILES==="
-git diff --name-only "origin/$BASE...HEAD" 2>/dev/null
+git -C "$REPO_DIR" diff --name-only "origin/$BASE...HEAD" 2>/dev/null
 
 echo "===TEXTUAL_MERGE==="
-# git merge-tree on the merge-base + both heads. Conflict markers appear as `+<<<<<<<`.
-MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null)
+MERGE_BASE=$(git -C "$REPO_DIR" merge-base "origin/$BASE" HEAD 2>/dev/null)
 if [ -n "$MERGE_BASE" ]; then
-  git merge-tree "$MERGE_BASE" "origin/$BASE" HEAD 2>&1 | head -200
+  git -C "$REPO_DIR" merge-tree "$MERGE_BASE" "origin/$BASE" HEAD 2>&1 | head -200
 else
-  echo "[no merge-base — branches do not share history]"
+  echo "[no merge-base; branches do not share history]"
 fi
 
 echo "===FILE_OVERLAPS==="
-# For each changed file, list active branches that also touch it.
-# Skips the base branch and the current branch itself.
-CURRENT=$(git branch --show-current 2>/dev/null)
-CHANGED_FILES=$(git diff --name-only "origin/$BASE...HEAD" 2>/dev/null)
+CURRENT=$(git -C "$REPO_DIR" branch --show-current 2>/dev/null)
+CHANGED_FILES=$(git -C "$REPO_DIR" diff --name-only "origin/$BASE...HEAD" 2>/dev/null)
 
 if [ -z "$CHANGED_FILES" ] || [ -z "$ACTIVE" ]; then
-  echo "[no changed files OR no active sibling branches — skipping]"
+  echo "[no changed files OR no active sibling branches; skipping]"
 else
-  for changed in $CHANGED_FILES; do
+  while IFS= read -r changed; do
+    [ -z "$changed" ] && continue
     for branch in $ACTIVE; do
       [ "$branch" = "origin/$BASE" ] && continue
       [ "$branch" = "origin/$CURRENT" ] && continue
       [ "$branch" = "$CURRENT" ] && continue
-      sibling_files=$(git diff --name-only "$branch...origin/$BASE" 2>/dev/null)
+      sibling_files=$(git -C "$REPO_DIR" diff --name-only "origin/$BASE...$branch" 2>/dev/null)
       if echo "$sibling_files" | grep -qF "$changed"; then
         echo "FILE: $changed BRANCH: $branch"
       fi
     done
-  done
+  done <<< "$CHANGED_FILES"
 fi
 
 echo "===END==="
